@@ -25,7 +25,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read # Needed to pull the base image
       packages: write # Needed to push the final image
 
     steps:
