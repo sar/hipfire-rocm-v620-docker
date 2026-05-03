@@ -1,0 +1,23 @@
+# Use the base image (Build this first: docker build -f Dockerfile.base -t hipfire-base .)
+FROM hipfire-base
+
+WORKDIR /app
+
+# 1. Copy the local source code repository
+# Assumes 'hipfire/' exists in the same directory as this Dockerfile
+COPY hipfire/ /app/hipfire/
+
+# 2. Copy the install script
+COPY install_hipfire.sh /app/install_hipfire.sh
+RUN chmod +x /app/install_hipfire.sh
+
+# 3. Copy configuration files
+COPY configs/ /app/configs/
+
+# 4. Run the build script
+RUN /app/install_hipfire.sh
+
+# 5. Set PATH for hipfire binaries
+ENV PATH="/root/.hipfire/bin:${PATH}"
+
+CMD ["/bin/bash"]

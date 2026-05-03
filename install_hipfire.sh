@@ -1,58 +1,33 @@
 #!/bin/bash
-# install_headless.sh — Hipfire Builder for GFX1030 (Headless)
-# Builds the entire project (Engine + Quantizer + Tools) without GPU hardware.
+# install_hipfire.sh — Builds Hipfire from local source for GFX1030
 set -euo pipefail
 
 HIPFIRE_DIR="$HOME/.hipfire"
 BIN_DIR="$HIPFIRE_DIR/bin"
-MODELS_DIR="$HIPFIRE_DIR/models"
-SRC_DIR="$HIPFIRE_DIR/src"
-GITHUB_REPO="Kaden-Schutt/hipfire"
-GITHUB_BRANCH="master"
+REPO_DIR="/app/hipfire" # Path where Dockerfile copied the source
 
 # ─── HARDCODED CONFIG ───────────────────────────────────────
 TARGET_ARCH="gfx1030"
 # ───────────────────────────────────────────────────────────
 
-echo "=== Hipfire Headless Builder (GFX1030) ==="
+echo "=== Hipfire Build Process (Local Source) ==="
+echo "Source Dir: $REPO_DIR"
 echo "Target Arch: $TARGET_ARCH"
 
-# ─── Install Basics ─────────────────────────────────────────
-if ! command -v unzip &>/dev/null; then
-    apt-get update && apt-get install -y unzip || true
+# Verify source exists
+if [ ! -d "$REPO_DIR" ]; then
+    echo "ERROR: Source directory $REPO_DIR not found."
+    exit 1
 fi
-
-if ! command -v bun &>/dev/null; then
-    echo "Installing Bun..."
-    curl -fsSL https://bun.sh/install | bash
-    export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
-    export PATH="$BUN_INSTALL/bin:$PATH"
-fi
-
-# ─── Clone Repository ───────────────────────────────────────
-mkdir -p "$HIPFIRE_DIR"
-if [ ! -d "$SRC_DIR/.git" ]; then
-    echo "Cloning repository..."
-    git clone --depth 1 --branch "$GITHUB_BRANCH" "https://github.com/$GITHUB_REPO.git" "$SRC_DIR"
-fi
-REPO_DIR="$SRC_DIR"
 
 # ─── Build Everything ───────────────────────────────────────
 echo ""
-echo "Starting Full Build (This may take a few minutes)..."
+echo "Starting Full Build..."
 
-# 1. Setup Rust if missing
-if ! command -v cargo &>/dev/null; then
-    echo "Installing Rust..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y 2>/dev/null
-    . "$HOME/.cargo/env"
-fi
-
-# 2. Set Build Flags
+# 1. Set Build Flags
 export HSA_OVERRIDE_GFX_VERSION=10.3.0
 
-# 3. Build the workspace
-# We build the engine with features, and the quantizer explicitly.
+# 2. Build the workspace
 cd "$REPO_DIR"
 
 echo "Building Engine (Daemon + Infer)..."
@@ -66,11 +41,10 @@ echo ""
 echo "Installing binaries to $BIN_DIR..."
 mkdir -p "$BIN_DIR"
 
-# Find and copy all built binaries (daemon, infer, quantizer, etc)
-# 1. Copy binaries from target/release (this catches 'hipfire-quantize')
+# 1. Copy binaries from target/release (catches 'hipfire-quantize')
 find target/release -maxdepth 1 -type f -executable -exec cp -f {} "$BIN_DIR/" \;
 
-# 2. Copy binaries from target/release/examples (this catches 'daemon', 'infer')
+# 2. Copy binaries from target/release/examples (catches 'daemon', 'infer')
 if [ -d "target/release/examples" ]; then
     find target/release/examples -maxdepth 1 -type f -executable -exec cp -f {} "$BIN_DIR/" \;
 fi
@@ -108,18 +82,22 @@ else
     echo "  No pre-compiled kernels found in repo. (Will JIT compile on first run)"
 fi
 
-# ─── Config ─────────────────────────────────────────────────
-CONFIG="$HIPFIRE_DIR/config.json"
-if [ ! -f "$CONFIG" ]; then
-    cat > "$CONFIG" << CONF
-{
-  "temperature": 0.3,
-  "top_p": 0.8,
-  "max_tokens": 512,
-  "gpu_arch": "$TARGET_ARCH"
-}
-CONF
+# ─── Apply Configuration Files ─────────────────────────────
+echo ""
+echo "Applying configuration from /app/configs/..."
+if [ -f "/app/configs/config.json" ]; then
+    cp /app/configs/config.json "$HIPFIRE_DIR/config.json"
+    echo "  config.json applied."
+else
+    echo "  WARNING: /app/configs/config.json not found."
+fi
+
+if [ -f "/app/configs/models.json" ]; then
+    cp /app/configs/models.json "$HIPFIRE_DIR/models.json"
+    echo "  models.json applied."
+else
+    echo "  WARNING: /app/configs/models.json not found."
 fi
 
 echo ""
-echo "=== Install Complete ==="
+echo "=== Build Complete ==="
