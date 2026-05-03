@@ -1,10 +1,10 @@
-# Use the base image (Build this first: docker build -f Dockerfile.base -t hipfire-base .)
-FROM hipfire-base
+# Add ARG to accept the base image location dynamically
+ARG BASE_IMAGE=hipfire-base
+FROM ${BASE_IMAGE}
 
 WORKDIR /app
 
 # 1. Copy the local source code repository
-# Assumes 'hipfire/' exists in the same directory as this Dockerfile
 COPY hipfire/ /app/hipfire/
 
 # 2. Copy the install script
